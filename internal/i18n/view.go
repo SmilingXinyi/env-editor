@@ -1,0 +1,56 @@
+package i18n
+
+// Texts of the list and of the title.
+var (
+	Title          = def("env-editor  %s  (variables: %d)", "env-editor  %s  （%d 个变量）")
+	TitleMasked    = def("  [values hidden, press v to show]", "  [值已隐藏，按 v 显示]")
+	SearchPrompt   = def("Search: ", "搜索：")
+	NewVariableRow = def("+ New variable", "+ 新建变量")
+	BlankRow       = def("(blank)", "（空行）")
+	MultilineTail  = def(" … (multi-line)", " …（多行值）")
+)
+
+// Labels of the help rows at the bottom of the screen.
+var (
+	GroupBrowse = def("Browse", "浏览")
+	GroupAdd    = def("Add", "新增")
+	GroupChange = def("Change", "修改")
+	GroupSearch = def("Search", "搜索")
+	GroupNew    = def("New", "新建")
+	GroupImport = def("Import", "导入")
+	GroupEdit   = def("Edit", "编辑")
+)
+
+// Items of the help rows. Each starts with the key.
+var (
+	HelpSelect     = def("↑/↓ j/k select", "↑/↓ j/k 选择")
+	HelpEdit       = def("enter edit", "enter 编辑")
+	HelpSearch     = def("/ search", "/ 搜索")
+	HelpMask       = def("v show/hide values", "v 显示/隐藏值")
+	HelpReload     = def("R reload", "R 重新加载")
+	HelpQuit       = def("q quit", "q 退出")
+	HelpAdd        = def("a new variable", "a 新建变量")
+	HelpBlank      = def("n blank line", "n 插入空行")
+	HelpComment    = def("c comment", "c 插入注释")
+	HelpCopy       = def("y copy line (variables keep a commented backup)", "y 复制行（变量留注释备份）")
+	HelpRename     = def("r rename", "r 重命名")
+	HelpToggle     = def("# comment/uncomment", "# 注释/取消注释")
+	HelpDelete     = def("d delete (twice for variables)", "d 删除（变量按两次）")
+	HelpMerge      = def("f merge blank lines", "f 合并空行")
+	HelpUndo       = def("u undo", "u 撤销")
+	HelpSearchHint = def("type part of a KEY, value or comment", "输入要查找的 KEY、值或注释")
+	HelpMatches    = def("↑/↓ previous/next match", "↑/↓ 上/下一个匹配")
+	HelpPick       = def("enter select", "enter 选中")
+	HelpConfirm    = def("enter confirm", "enter 确认")
+	HelpCancel     = def("esc cancel", "esc 取消")
+	HelpStartValue = def("= start the value", "输入 = 开始填值")
+	HelpCaseUpper  = def("KEY is upper-cased, ctrl+t to toggle", "KEY 自动大写，ctrl+t 切换")
+	HelpCaseKeep   = def("KEY keeps its case, ctrl+t to toggle", "KEY 保留大小写，ctrl+t 切换")
+	HelpClear      = def("ctrl+u clear", "ctrl+u 清空")
+	HelpImport     = def("paste several KEY=VALUE lines to import them", "粘贴多行 KEY=VALUE 可批量导入")
+	HelpAddValue   = def("enter add", "enter 添加")
+	HelpBackToKey  = def("esc back to KEY", "esc 返回修改 KEY")
+	HelpMove       = def("←/→ home/end move", "←/→ home/end 移动")
+	HelpWord       = def("ctrl+←/→ by word", "ctrl+←/→ 按词跳转")
+	HelpDeleteWord = def("alt+backspace delete word", "alt+backspace 删除前一词")
+)
