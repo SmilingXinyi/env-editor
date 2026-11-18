@@ -19,7 +19,7 @@ Open a file, change the lines you care about, and leave. There is no separate sa
 
 ### Install or upgrade
 
-This downloads the latest release for the machine you are on, checks it against the release's `SHA256SUMS`, and places the `env-editor` binary in the current user's bin directory. The default directory is `~/.local/bin`. Run the same command again to replace the binary already there.
+This downloads the latest release for the machine you are on, checks it against the release's `SHA256SUMS`, and places the `env-editor` binary in the current user's bin directory. The default directory is `~/.local/bin`. It also links that binary as `ee`, so the short command and `env-editor` run the same program. Run the same command again to replace the binary and refresh the link. An existing `ee` that is not already a link to `env-editor` is left unchanged.
 
 The archive, the checksum file, and the temporary copy are deleted before the command finishes. Shell startup files are left unchanged. If `~/.local/bin` is not on `PATH`, the command prints the `export` line to add.
 
@@ -38,11 +38,13 @@ Published releases currently include `linux/amd64` and `linux/arm64`. Each archi
 ### Edit a file
 
 ```sh
-env-editor                  # opens ./.env
-env-editor .env.local       # opens a chosen file
-env-editor -m               # starts with values hidden
-env-editor --help           # prints the key list in the current language
+ee                          # opens ./.env
+ee .env.local               # opens a chosen file
+ee -m                       # starts with values hidden
+ee --help                   # prints the key list in the current language
 ```
+
+`env-editor` is the same command.
 
 A path that does not exist yet stays uncreated until the first change is saved. `-m` / `--mask` hides values on start; `v` shows them again while the editor is open.
 
@@ -91,4 +93,4 @@ go build -o env-editor .
 
 `sh install.sh` downloads the latest GitHub Release, the same way the `curl` command does. A binary from this checkout comes from `go build` above. Copy that file to `ENV_EDITOR_BIN` (or `~/.local/bin`) when the shell should run it.
 
-A published release is a pair of Linux archives, `env-editor_<version>_linux_amd64.tar.gz` and `env-editor_<version>_linux_arm64.tar.gz`, plus `SHA256SUMS`. Inside each archive the binary is `env-editor_<version>_linux_<arch>/env-editor`. The install script resolves `https://github.com/SmilingXinyi/env-editor/releases/latest`, checks the archive for this machine, and replaces `~/.local/bin/env-editor`. The next run of the `curl` command picks up whatever release is latest.
+A published release is a pair of Linux archives, `env-editor_<version>_linux_amd64.tar.gz` and `env-editor_<version>_linux_arm64.tar.gz`, plus `SHA256SUMS`. Inside each archive the binary is `env-editor_<version>_linux_<arch>/env-editor`. The install script resolves `https://github.com/SmilingXinyi/env-editor/releases/latest`, checks the archive for this machine, and replaces `~/.local/bin/env-editor`. It links `~/.local/bin/ee` to that binary. The next run of the `curl` command picks up whatever release is latest.
