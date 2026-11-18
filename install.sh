@@ -4,8 +4,9 @@
 # The same command does both. It downloads the latest GitHub Release for
 # this machine, checks the archive against SHA256SUMS, and moves the binary
 # to the user's bin directory (default: ~/.local/bin). An existing binary
-# at that path is replaced. The archive, checksum, and temporary copy are
-# removed before the script exits.
+# at that path is replaced. The short command ee in that directory is a
+# link to the binary. The archive, checksum, and temporary copy are removed
+# before the script exits.
 #
 #   curl -fsSL https://raw.githubusercontent.com/SmilingXinyi/env-editor/main/install.sh | sh
 #
@@ -17,6 +18,7 @@ set -eu
 
 repo="SmilingXinyi/env-editor"
 name="env-editor"
+short="ee"
 tmpdir=
 stage=
 
@@ -29,7 +31,7 @@ cleanup() {
   if [ -n "${tmpdir:-}" ] && [ -d "$tmpdir" ]; then
     rm -rf "$tmpdir"
   fi
-  if [ -n "${stage:-}" ] && [ -f "$stage" ]; then
+  if [ -n "${stage:-}" ]; then
     rm -f "$stage"
   fi
 }
@@ -45,6 +47,8 @@ need() {
 need curl
 need tar
 need awk
+need ln
+need readlink
 
 os=$(uname -s)
 case "$os" in
@@ -134,7 +138,32 @@ chmod 755 "$stage" 2>/dev/null || die "cannot make ${dest} executable"
 mv -f "$stage" "$dest" 2>/dev/null || die "cannot replace ${dest}"
 stage=
 
+link=$bindir/$short
+link_ok=0
+if [ ! -e "$link" ] && [ ! -L "$link" ]; then
+  link_ok=1
+else
+  target=$(readlink "$link" 2>/dev/null || true)
+  case "$target" in
+    "$name" | "$dest") link_ok=1 ;;
+  esac
+fi
+if [ "$link_ok" -eq 1 ]; then
+  stage=$bindir/.${short}.new.$$
+  ln -s "$name" "$stage" 2>/dev/null || die "cannot link ${link}"
+  mv -f "$stage" "$link" 2>/dev/null || die "cannot link ${link}"
+  stage=
+else
+  printf 'install: left %s unchanged\n' "$link" >&2
+fi
+
 printf '%s %s at %s\n' "$action" "$tag" "$dest"
+if [ -L "$link" ]; then
+  target=$(readlink "$link" 2>/dev/null || true)
+  case "$target" in
+    "$name" | "$dest") printf 'Short command: %s\n' "$link" ;;
+  esac
+fi
 
 case ":$PATH:" in
   *":$bindir:"*) ;;
@@ -146,4 +175,8 @@ esac
 resolved=$(command -v "$name" || true)
 if [ -n "$resolved" ] && [ "$resolved" != "$dest" ]; then
   printf 'A different %s is earlier on PATH (%s).\n' "$name" "$resolved" >&2
+fi
+resolved=$(command -v "$short" || true)
+if [ -n "$resolved" ] && [ "$resolved" != "$link" ]; then
+  printf 'A different %s is earlier on PATH (%s).\n' "$short" "$resolved" >&2
 fi
