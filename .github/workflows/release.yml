@@ -88,19 +88,7 @@ jobs:
       actions: write
     strategy:
       matrix:
-        include:
-          - goos: linux
-            goarch: amd64
-          - goos: linux
-            goarch: arm64
-          - goos: darwin
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
-          - goos: windows
-            goarch: amd64
-          - goos: windows
-            goarch: arm64
+        goarch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -115,33 +103,24 @@ jobs:
       - name: Package
         shell: bash
         env:
-          GOOS: ${{ matrix.goos }}
+          GOOS: linux
           GOARCH: ${{ matrix.goarch }}
           VERSION: ${{ needs.prepare.outputs.version }}
           CGO_ENABLED: "0"
         run: |
           set -euo pipefail
-          bin="env-editor"
-          archive="env-editor_${VERSION}_${GOOS}_${GOARCH}.tar.gz"
-          if [ "$GOOS" = "windows" ]; then
-            bin="env-editor.exe"
-            archive="env-editor_${VERSION}_${GOOS}_${GOARCH}.zip"
-          fi
           root="env-editor_${VERSION}_${GOOS}_${GOARCH}"
+          archive="${root}.tar.gz"
           stage="staging/${root}"
           mkdir -p "$stage" out
           cp LICENSE "$stage/LICENSE"
-          go build -trimpath -ldflags "-s -w" -o "${stage}/${bin}" .
-          if [ "$GOOS" = "windows" ]; then
-            (cd staging && zip -qr "../out/${archive}" "$root")
-          else
-            chmod 755 "${stage}/${bin}"
-            tar -C staging -czf "out/${archive}" "$root"
-          fi
+          go build -trimpath -ldflags "-s -w" -o "${stage}/env-editor" .
+          chmod 755 "${stage}/env-editor"
+          tar -C staging -czf "out/${archive}" "$root"
       - name: Upload archive
         uses: actions/upload-artifact@v7
         with:
-          name: env-editor-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: env-editor-linux-${{ matrix.goarch }}
           path: out/*
           if-no-files-found: error
           retention-days: 7
