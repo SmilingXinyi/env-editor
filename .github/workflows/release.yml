@@ -1,0 +1,207 @@
+# Build env-editor when a version tag is pushed and attach the archives to a
+# GitHub Release.
+#
+# Automatic: push a tag such as v1.2.3 or v1.2.3-rc.1.
+# Manual: Actions → Release → Run workflow, then enter an existing tag.
+# A manual run checks out that tag, so the workflow file on the default branch
+# is what executes.
+
+name: Release
+
+run-name: Release ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "v[0-9]*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to package, for example v1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Resolve release tag
+        id: meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            raw="$INPUT_TAG"
+          else
+            raw="$REF_NAME"
+          fi
+          tag=$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$'
+          if [[ ! "$tag" =~ $semver ]]; then
+            echo "Refusing to release '${tag}'. Expected a tag like v1.2.3 or v1.2.3-rc.1." >&2
+            exit 1
+          fi
+          {
+            echo "tag=${tag}"
+            echo "version=${tag#v}"
+          } >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Test
+        run: go test ./...
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+      - name: Setup Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Package
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          bin="env-editor"
+          archive="env-editor_${VERSION}_${GOOS}_${GOARCH}.tar.gz"
+          if [ "$GOOS" = "windows" ]; then
+            bin="env-editor.exe"
+            archive="env-editor_${VERSION}_${GOOS}_${GOARCH}.zip"
+          fi
+          root="env-editor_${VERSION}_${GOOS}_${GOARCH}"
+          stage="staging/${root}"
+          mkdir -p "$stage" out
+          cp LICENSE "$stage/LICENSE"
+          go build -trimpath -ldflags "-s -w" -o "${stage}/${bin}" .
+          if [ "$GOOS" = "windows" ]; then
+            (cd staging && zip -qr "../out/${archive}" "$root")
+          else
+            chmod 755 "${stage}/${bin}"
+            tar -C staging -czf "out/${archive}" "$root"
+          fi
+      - name: Upload archive
+        uses: actions/upload-artifact@v7
+        with:
+          name: env-editor-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [prepare, test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: env-editor-*
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cd dist
+          mapfile -t archives < <(printf '%s\n' env-editor_* | sort)
+          if [ "${#archives[@]}" -eq 0 ] || [ "${archives[0]}" = "env-editor_*" ]; then
+            echo "No release archives were downloaded." >&2
+            exit 1
+          fi
+          sha256sum "${archives[@]}" > SHA256SUMS
+
+          if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${archives[@]}" SHA256SUMS --repo "$GH_REPO" --clobber
+          else
+            args=(
+              release create "$TAG"
+              "${archives[@]}"
+              SHA256SUMS
+              --repo "$GH_REPO"
+              --title "$TAG"
+              --generate-notes
+              --verify-tag
+            )
+            if [[ "$TAG" == *-* ]]; then
+              args+=(--prerelease --latest=false)
+            fi
+            gh "${args[@]}"
+          fi
+
+          url=$(gh release view "$TAG" --repo "$GH_REPO" --json url --jq .url)
+          {
+            echo "## ${TAG}"
+            echo
+            echo "Published to ${url}"
+            echo
+            echo "| File | SHA256 |"
+            echo "| --- | --- |"
+            while read -r sum file; do
+              echo "| \`${file}\` | \`${sum}\` |"
+            done < SHA256SUMS
+          } >> "$GITHUB_STEP_SUMMARY"
